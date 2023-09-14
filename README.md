@@ -2,16 +2,19 @@
 
 Game submission for js13k 2023 competition.
 
+Minimized with [RoadRoller](https://github.com/lifthrasiir/roadroller/).
+
+[ZzFX](https://github.com/KilledByAPixel/ZzFX) was used for sounds.
+
 [https://js13kgames.com/entries/only-one](https://js13kgames.com/entries/only-one)
 
 ## Description
-Defeat enemies alone on the battlefield. It has 5 levels.
+Defeat enemies alone on the battlefield. It has 8 levels.
 
-W, A, S, D (or arrow keys): Move.
-
-Click on the screen with the mouse: Attack.
-
-Spacebar to move to the next level.
+* W, A, S, D (or arrow keys): Move.
+* Click on the screen with the mouse: Attack.
+* Spacebar to move to the next level.
+* You can send them back by strike the arrows.
 
 ## js13kGame
 HTML5 and JavaScript Game Development Competition in just 13 kB.

@@ -8,7 +8,16 @@ context.font = "bold 20px monospace";
 context.textAlign = "center";
 context.textBaseline = "middle";
 
+const colors = {
+	background: "#FCA6AC",
+	text: "#E8E7CB",
+	shadow: "#2176CC",
+	player: "#E9E0C5",
+	enemy: "#FF7D6E"
+};
+
 const DELTA = 1000/60;
+const MS = 1/60;
 const TWO_PI = Math.PI * 2;
 
 const cursorPath = new Path2D("M0 10 V0 h10, m10 0 h10 v10, m0 10 v10 h-10, m-10 0 h-10 v-10");
@@ -20,14 +29,18 @@ let time = 0;
 // Levels
 let level = 0;
 const levelData = [
-	// [ levelTitle, enemyCount, enemySpawnTime, archerChance ]
-	["You are the last alive,\ndefeat the remaining enemies.\nFinish Level 5 and win.", 3, 3, 0], // Level 1
-	["Go ahead.", 5, 2, 0], // Level 2
-	["Archers have appeared!", 5, 2, 0.3], // Level 3
-	["More to come!", 15, 2, 0.4], // Level 4
-	["The last battle to victory.", 20, 1, 0.5], // Level 5
-	["Thanks for playing.", 0, 0, 0]
+	// [ levelTitle, enemyCount, enemySpawnTime, archerSpawnChance ]
+	["Thou art the last alive,\nDefeate the remaining foes.\nComplete 8 levels to victory.", 3, 2, 0], // Level 1
+	["Go ahead.", 6, 2, 0], // Level 2
+	["Archers have appeared!\n(Strike the arrows with the sword\nto send them back.)", 10, 3, 0.4], // Level 3
+	["Thou art halfway there.", 15, 2, 0.3], // Level 4
+	["More to come!", 20, 2, 0.3], // Level 5
+	["Surrounded by archers!", 10, 0, 1], // Level 6
+	["Almost there...", 25, 1.5, 0.4], // Level 7
+	["The final battle to victory.", 30, 1, 0.4], // Level 8
+	["Thou hast done it!\nThanks for playing.", 0, 0, 0]
 ];
+const levelSize = levelData.length - 1;
 
 // Enemy
 const enemies = [];
@@ -35,7 +48,7 @@ const arrows = [];
 let levelTitle = levelData[level][0];
 let enemyCount = levelData[level][1];
 let enemySpawnTime = levelData[level][2]; // seconds.
-let archerChance = levelData[level][3];
+let archerSpawnChance = levelData[level][3];
 
 // Player
 const MAX_HP = 3;
@@ -45,14 +58,15 @@ const pointer = initPointer();
 initKeys();
 
 const player = Sprite({
-	x: WIDTH / 2 - 7.5,
-	y: HEIGHT / 2 - 7.5,
+	x: WIDTH / 2 - 10,
+	y: HEIGHT / 2 - 10,
 	radius: 20,
 	halfRadius: 20 / 2,
 	anchor: Vector(0.5, 0.5),
-	color: "#E8E3C8",
+	color: colors.player,
 	update() {
 		this.advance(DELTA);
+		
 		let pos = Vector(0, 0);
 
 		if(keyPressed("w") || keyPressed("arrowup")) pos.y = -1;
@@ -89,6 +103,7 @@ const sword = Sprite({
 	width: 10,
 	height: 40,
 	anchor: Vector(0.5, 0.8),
+	color: colors.player,
 	isSwinging: false,
 	lastAttackTime: 0,
 	attackDur: 0.4,
@@ -98,6 +113,13 @@ const sword = Sprite({
 	amplitude: 1.5,
 	period: 400,
 	phase: 1.5,
+	hitBox() { // Circle collision for sword.
+		const x = sword.x + Math.cos(sword.rotation - 1.6) * sword.margin * 0.45;
+		const y = sword.y + Math.sin(sword.rotation - 1.6) * sword.margin * 0.45;
+		const radius = sword.height * 0.4;
+		
+		return { x, y, radius };
+	},
 	attack() {
 		if(this.isSwinging === true) return;
 
@@ -109,17 +131,12 @@ const sword = Sprite({
 		const angle = Math.atan2(pointer.y - player.y, pointer.x - player.x);
 		this.rotation = angle + 1.6;
 		
-		if(!this.isSwinging) {
-			this.x = player.x + Math.cos(angle) * this.margin;
-			this.y = player.y + Math.sin(angle) * this.margin;
-
-			return;
-		}
-
-		this.time += DELTA;
-
 		this.x = player.x + Math.cos(angle) * this.margin;
 		this.y = player.y + Math.sin(angle) * this.margin;
+
+		if(!this.isSwinging) return;
+		
+		this.time += DELTA;
 
 		// Calculate the swing angle based on the current rotation.
 		this.rotation += Math.cos((TWO_PI / this.period) * this.time + this.phase) * this.amplitude;
@@ -130,7 +147,7 @@ const sword = Sprite({
 		}
 	},
 	render() {
-		context.fillStyle = "#E8E3C8";
+		context.fillStyle = this.color;
 
 		context.beginPath();
 
@@ -156,7 +173,7 @@ const cursor = Sprite({
 	height: 30,
 	size: 5,
 	anchor: Vector(0.5, 0.5),
-	color: "#E8E3C8",
+	color: colors.player,
 	update() {
 		this.x = clamp(20, WIDTH - (this.width - 10), pointer.x);
 		this.y = clamp(20, HEIGHT - (this.height - 10), pointer.y);
@@ -188,7 +205,7 @@ const hud = Sprite({
 				height: 30,
 				scaleX: 3,
 				scaleY: 3,
-				color: "#E8E3C8",
+				color: colors.text,
 				render() {
 					context.fillStyle = this.color;
 					context.strokeStyle = this.color;
@@ -200,13 +217,14 @@ const hud = Sprite({
 			heart.render();
 		}
 		
-		const enemyCountTxt = `Live Enemy: ${enemyCount}`;
-		const enemyCountTxtWdth = context.measureText(enemyCountTxt).width;
+		const foeCountTxt = `Live Foes: ${enemyCount}`;
+		const foeCountTxtWdth = context.measureText(foeCountTxt).width;
 		
 		context.shadowOffsetX = 3;
 		context.shadowOffsetY = 2;
-		context.fillStyle = "rgb(232, 227, 200)";
-		context.fillText(enemyCountTxt, WIDTH - 30 - enemyCountTxtWdth / 2, 50);
+		
+		context.fillStyle = colors.text;
+		context.fillText(foeCountTxt, WIDTH - 30 - foeCountTxtWdth / 2, 50);
 		
 		context.font = "bold 30px monospace";
 		context.fillText(`Level: ${level + 1}`, WIDTH / 2, 50);
@@ -216,7 +234,7 @@ const hud = Sprite({
 		
 		if(showWaitScreen) {
 			context.fillStyle = "rgba(132, 127, 100, 0.3)";
-			context.fillRect(-3, -2, this.width, this.height);
+			context.fillRect(0, 0, this.width, this.height);
 			
 			context.font = "bold 30px monospace";
 			context.fillStyle = "rgb(232 227 200)";
@@ -233,7 +251,7 @@ const hud = Sprite({
 			}
 		}
 		
-		if(showWaitScreen && level < 5) {
+		if(showWaitScreen && level < levelSize) {
 			context.font = "bold 16px monospace";
 			context.fillText("(Press space to start)", WIDTH * 0.5, HEIGHT * 0.4 + lvlTitleHght);
 		}
@@ -257,51 +275,67 @@ function randomEnemySpawnPoint() {
 	return { x, y };
 }
 
+function newArrow(x, y, target) {
+	const rotation = Math.atan2(y - target.y, x - target.x);
+	let dir = Vector(x, y).subtract(target.position)
+				.normalize()
+				.scale(randInt(3, 4));
+	
+	return Sprite({
+		x,
+		y,
+		rotation,
+		color: colors.enemy,
+		width: 20,
+		height: 5,
+		isReflected: false,
+		reflect() {
+			if(this.isReflected) return;
+			
+			this.rotation = Math.atan2(this.y - target.y, this.x - target.x);
+			dir = Vector(this.x, this.y).subtract(target.position)
+				.normalize()
+				.scale(randInt(5, 6));
+			
+			dir.x *= -1;
+			dir.y *= -1;
+			
+			this.isReflected = true;
+		},
+		isOffScreen() {
+			return this.x < 0 || this.x > WIDTH || this.y < 0 || this.y > HEIGHT
+		},
+		update() {
+			this.x -= dir.x;
+			this.y -= dir.y;
+		}
+	});
+}
+
 function newArcher(x, y) {
-	const enemy = Sprite({
+	return Sprite({
 		x,
 		y,
 		speed: 3,
 		width: 40,
 		height: 40,
-		color: "#FF7D6E",
+		color: colors.enemy,
 		anchor: Vector(0.5, 0.5),
 		time: 0,
-		arrowDelay: 2,
+		arrowDelay: 1,
 		throwArrow() {
 			if(this.time <= this.arrowDelay) return;
 			
 			this.time = 0;
 			
-			const dir = this.position.subtract(player.position)
-				.normalize()
-				.scale(this.speed);
-			
-			const arrowRot = Math.atan2(this.y - player.y, this.x - player.x);
-			
-			const arrow = Sprite({
-				color: "#FF7D6E",
-				x: this.x,
-				y: this.y,
-				width: 20,
-				height: 5,
-				rotation: arrowRot,
-				isOffScreen() {
-					return this.x < 0 || this.x > WIDTH || this.y < 0 || this.y > HEIGHT
-				},
-				update() {
-					this.x -= dir.x;
-					this.y -= dir.y;
-				}
-			});
-			
+			const arrow = newArrow(this.x, this.y, player);
 			arrows.push(arrow);
 		},
 		update() {
 			const dist = this.position.subtract(player.position);
 			
-			if(dist.length() <= this.width * 6) {
-				this.time += DELTA / 1000;
+			if(dist.length() <= this.width * 7) {
+				this.time += MS;
 				this.throwArrow();
 				return;
 			}
@@ -311,7 +345,7 @@ function newArcher(x, y) {
 			const dir = dist.normalize()
 				.scale(this.speed);
 
-			this.x-= dir.x;
+			this.x -= dir.x;
 			this.y -= dir.y;
 		},
 		render() {
@@ -322,18 +356,16 @@ function newArcher(x, y) {
 			context.fill();
 		}
 	});
-	
-	return enemy;
 }
 
-function newSwordsMan(x, y, speed) {
-	const enemy = Sprite({
+function newSwordsman(x, y, speed) {
+	return Sprite({
 		x,
 		y,
 		speed,
 		width: 40,
 		height: 40,
-		color: "#FF7D6E",
+		color: colors.enemy,
 		anchor: Vector(0.5, 0.5),
 		update() {
 			this.rotation += 0.05;
@@ -353,17 +385,15 @@ function newSwordsMan(x, y, speed) {
 			context.fill();
 		}
 	});
-	
-	return enemy;
 }
 
 function addEnemy() {
 	const { x, y } = randomEnemySpawnPoint();
 	const speed = randInt(1, 3);
 
-	const enemy = chance(archerChance)
+	const enemy = chance(archerSpawnChance)
 		? newArcher(x, y)
-		: newSwordsMan(x, y, speed);
+		: newSwordsman(x, y, speed);
 
 	return enemy;
 }
@@ -413,16 +443,17 @@ function resumeGame() {
 	// Reset enemy
 	enemyCount = levelData[level][1];
 	enemySpawnTime = levelData[level][2];
-	archerChance = levelData[level][3];
+	archerSpawnChance = levelData[level][3];
 	enemies.length = 0;
+	arrows.length = 0;
 	
 	// Reset sword
 	sword.isSwinging = false;
 	sword.time = 0;
 	
 	// Reset player
-	player.x = WIDTH / 2 - player.radius / 2;
-	player.y = HEIGHT / 2 - player.radius / 2;
+	player.x = WIDTH / 2 - player.halfRadius;
+	player.y = HEIGHT / 2 - player.halfRadius;
 	time = 0;
 	
 	if(hp <= 0) hp = MAX_HP;
@@ -441,7 +472,7 @@ let currentScene = gameScene;
 const gameLoop = GameLoop({
 	clearScreen: false,
 	update() {
-		if(gameStop && level < 5 && keyPressed("space")) resumeGame();
+		if(gameStop && level < levelSize && keyPressed("space")) resumeGame();
 		
 		if(!gameStop && time >= enemySpawnTime && enemies.length < enemyCount) {
 			const enemy = addEnemy();
@@ -450,25 +481,29 @@ const gameLoop = GameLoop({
 			time = 0;
 		}
 
-		time += DELTA/1000;
+		time += MS;
 		
 		for(let idx=0; idx<enemies.length; idx++) {
 			const enemy = enemies[idx];
 			const isEnemyHitsPlayer = circleRectCollisionCheck(player, enemy);
-			const isSwordHitsEnemy = sword.isSwinging && rectCollisionCheck(sword, enemy);
+			const isSwordHitsEnemy = sword.isSwinging && circleRectCollisionCheck(sword.hitBox(), enemy);
+			const isArrowHitsEnemy = arrows.findIndex(arw => arw.isReflected && rectCollisionCheck(enemy, arw));
+			
+			const removeEnemy = isEnemyHitsPlayer || isSwordHitsEnemy || isArrowHitsEnemy > -1;
 
 			if(isEnemyHitsPlayer) {
 				hp -= 1;
-				enemies.splice(idx, 1);
-				enemyCount -= 1;
-				
 				playSound("damage");
-				continue;
 			} else if(isSwordHitsEnemy) {
+				playSound("hit");
+			} else if(isArrowHitsEnemy > -1) {
+				arrows.splice(idx, 1);
+				playSound("hit");
+			}
+			
+			if(removeEnemy) {
 				enemies.splice(idx, 1);
 				enemyCount -= 1;
-				
-				playSound("hit");
 				continue;
 			}
 
@@ -477,7 +512,14 @@ const gameLoop = GameLoop({
 		
 		for(let idx=0; idx<arrows.length; idx++) {
 			const arrow = arrows[idx];
+			
+			if(arrow.isOffScreen()) {
+				arrows.splice(idx, 1);
+				continue;
+			}
+			
 			const isArrowHitsPlayer = circleRectCollisionCheck(player, arrow);
+			const isSwordHitsArrow = sword.isSwinging && circleRectCollisionCheck(sword.hitBox(), arrow);
 			
 			if(isArrowHitsPlayer) {
 				arrows.splice(idx, 1);
@@ -485,11 +527,10 @@ const gameLoop = GameLoop({
 				
 				playSound("damage");
 				continue;
-			}
-			
-			if(arrow.isOffScreen()) {
-				arrows.splice(idx, 1);
-				continue;
+			} else if(isSwordHitsArrow) {
+				arrow.reflect();
+				
+				playSound("hitArrow");
 			}
 			
 			arrow.update();
@@ -510,14 +551,14 @@ const gameLoop = GameLoop({
 		}
 	},
 	render() {
-		context.fillStyle = "#FCA6AC";
+		context.fillStyle = colors.background;
 		context.fillRect(0, 0, WIDTH, HEIGHT);
 
-		context.shadowColor = "#2176CC";
+		context.shadowColor = colors.shadow;
 		context.shadowOffsetX = 4;
 		context.shadowOffsetY = 4;
 		
-		if(gameStop && level < 5 && keyPressed("space")) resumeGame();
+		if(gameStop && level < levelSize && keyPressed("space")) resumeGame();
 
 		for(const enemy of enemies) {
 			enemy.render();
@@ -543,8 +584,8 @@ function playSound(name, volume = 0.3) {
 
 const sounds = {
 	hit: [1.66,,163,.01,.04,.03,,.1,-8.8,.1,,,,,,.1,.03,.59,.05],
-	damage: [1.6,,278,,.01,.01,2,.7,-7.1,,,,.07,1,,,.09,.81,.08],
-	upgrade: [1.81,,27,.04,.17,.47,2,1.26,-3.1,,,.08,,,,,.14,.54,.2,.29]
+	hitArrow: [0.2,.1,500,.02,.04,,2,.32,,,136,.04,,,,,,.45,.04,.08],
+	damage: [1.6,,278,,.01,.01,2,.7,-7.1,,,,.07,1,,,.09,.81,.08]
 };
 
 // ZzFX - Zuper Zmall Zound Zynth - Micro Edition
