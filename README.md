@@ -2,6 +2,10 @@
 
 Game submission for js13k 2023 competition.
 
+https://js13kgames.com/entries/only-one
+
+(itch.io has a newer version: https://cemalgnlts.itch.io/only-one)
+
 Minimized with [RoadRoller](https://github.com/lifthrasiir/roadroller/).
 
 [ZzFX](https://github.com/KilledByAPixel/ZzFX) was used for sounds.
